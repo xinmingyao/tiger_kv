@@ -32,7 +32,7 @@ store_item(mnesia, #storage_command{key=Key} = Command) when is_list(Key) ->
     store_item(mnesia, Command#storage_command{key=list_to_binary(Key)});
 store_item(mnesia, #storage_command{key=Key, flags=Flags, exptime=Exptime, data=Data})
   when Exptime > 60*60*24*30 -> % (Exptime > 30 days), it is an absolute Unix time
-    zabe_learn_leveldb:put(binary_to_list(Key),
+    memcached_backend:put(binary_to_list(Key),
 			   #onecached{key=Key,
 				      flags=Flags,
 				      exptime=Exptime,
@@ -69,7 +69,7 @@ get_item(mnesia, Key) ->
 delete_item(mnesia, Key) when is_list(Key) ->
     delete_item(mnesia, list_to_binary(Key));
 delete_item(mnesia, Key) ->
-    zabe_learn_leveldb:delete(Key).
+    memcached_backend:delete(Key).
 
 
 % Update the value of item with the result of
@@ -96,7 +96,7 @@ flush_items(mnesia) ->
 % or none if not found
 % LockType is dirty, read or write
 mnesia_get(Key,Return) ->
-    case zabe_learn_leveldb:get(binary_to_list(Key)) of
+    case memcached_backend:get(binary_to_list(Key)) of
 	{ok,#onecached{exptime=0} = Item} ->
 	    {ok, item_value(Return, Item)};
 	{ok,#onecached{exptime=Exptime} = Item} ->
@@ -106,7 +106,7 @@ mnesia_get(Key,Return) ->
 		    {ok, item_value(Return, Item)};
 		false ->
 		    exit("todo delete"),
-		    zabe_learn_leveldb:delete(binary_to_list(Key)),
+		    memcached_backend:delete(binary_to_list(Key)),
 		    none
 	    end
 	
