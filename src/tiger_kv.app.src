@@ -1,0 +1,12 @@
+{application, tiger_kv,
+ [
+  {description, ""},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {mod, { tiger_kv_app, []}},
+  {env, []}
+ ]}.
