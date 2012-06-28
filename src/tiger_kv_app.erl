@@ -10,12 +10,13 @@
 %% ===================================================================
 
 start(_StartType, _StartArgs) ->
-    application:start(sasl),
-    application:start(erlang_js),
-    application:start(cowboy),
-    application:start(tiger_core),
-    cowboy:start_listener(bert,100,cowboy_tcp_transport,[{port,11211}],memcached_frontend,[])
-%%    tiger_kv_sup:start_link()
+    {ok,MemIp}=tiger_kv_util:get_env(memcached_ip,"127.0.0.1"),
+    {ok,MemPort}=tiger_kv_util:get_env(memcached_port,11211),
+    {ok,RedisIp}=tiger_kv_util:get_env(redis_ip,"127.0.0.1"),
+    {ok,RedisPort}=tiger_kv_util:get_env(redis_port,6379),
+    cowboy:start_listener(memcached,100,cowboy_tcp_transport,[{ip,MemIp},{port,MemPort}],memcached_frontend,[]),
+    cowboy:start_listener(redis,100,cowboy_tcp_transport,[{ip,RedisIp},{port,RedisPort}],edis_client,[]),
+    tiger_kv_sup:start_link()
 .
 
 stop(_State) ->

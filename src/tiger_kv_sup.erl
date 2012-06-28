@@ -29,7 +29,7 @@
 -export([init/1]).
 
 %% Helper macro for declaring children of supervisor
--define(CHILD2(I, Type,Paras, Timeout), {I, {I, start_link, Paras}, permanent, Timeout, Type, [I]}).
+-define(CHILD2(I, Type,Paras, Timeout), {I, {I, start_listener, Paras}, permanent, Timeout, Type, [I]}).
 -define(CHILD2(I, Type,Paras), ?CHILD2(I, Type,Paras,5000)).
 -define(CHILD(I, Type, Timeout), {I, {I, start_link, []}, permanent, Timeout, Type, [I]}).
 -define(CHILD(I, Type), ?CHILD(I, Type, 5000)).
@@ -46,12 +46,28 @@ start_link() ->
 %% Supervisor callbacks
 %% ===================================================================
 
-init([]) ->
-    {ok,MasterNodes}= tiger_core_util:get_env(master_nodes,[]),
-    Children = lists:flatten(
-                 [?CHILD2(tiger_core_cluster,worker,[MasterNodes,[]])
-                 ]),
 
-    {ok, {{one_for_one, 10, 10}, Children}}.
+init([]) ->
+    
+    {ok,MasterNodes}= tiger_core_util:get_env(master_nodes,['m1@127.0.0.1','m2@127.0.0.1','m3@127.0.0.1']),
+    {ok,DbDir}=tiger_kv_util:get_env(memcached_db_dir,"/tmp/memcached"),
+
+    RedisBackEnd = {redis_back_end,
+		    {edis_db, start_link,
+		     [MasterNodes,[],[]]},
+		    permanent, 5000, worker, [redis_back_end]},
+    MemBackEnd = {mem_back_end,
+		    {memcached_backend, start_link,
+		     [MasterNodes,[],DbDir]},
+		    permanent, 5000, worker, [mem_back_end]},
+    
+    % Build the process list...
+    Processes = lists:flatten([
+			       RedisBackEnd,
+			       MemBackEnd
+    ]),    
+    % Run the proesses...
+    {ok, {{one_for_one, 10, 10}, Processes}}.
+
 
 
