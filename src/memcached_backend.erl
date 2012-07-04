@@ -19,7 +19,7 @@
 -include("tiger_kv_main.hrl").
 -record(state, {leveldb}).
 
--export([put/2,get/1]).
+-export([put/2,get/1,delete/1]).
 
 -export([handle_commit/4]).
 
@@ -32,6 +32,8 @@
 put(Key,Value)->
     gen_zab_server:proposal_call(?SERVER,{put,Key,Value})
     .
+delete(Key)->
+    gen_zab_server:proposal_call(?SERVER,{delete,Key}).
 get(Key)->
     gen_zab_server:call(?SERVER,{get,Key}).
 
@@ -79,12 +81,14 @@ init([WorkDir]) ->
             {error, Reason}
     end.
 
-
-handle_commit({put,Key,Value},Zxid, State=#state{leveldb=Db},_ZabServerInfo) ->
-    
+handle_commit({delete,Key},Zxid, State=#state{leveldb=Db},_ZabServerInfo) ->   
     eleveldb:put(Db,?LAST_ZXID_KEY,term_to_binary(Zxid),[]),
-    eleveldb:put(Db,list_to_binary(Key),erlang:term_to_binary(Value),[]),
-    {ok,ok,State}
+    Reply=eleveldb:delete(Db,list_to_binary(Key),[]),
+    {ok,Reply,State};
+handle_commit({put,Key,Value},Zxid, State=#state{leveldb=Db},_ZabServerInfo) ->   
+    eleveldb:put(Db,?LAST_ZXID_KEY,term_to_binary(Zxid),[]),
+    Reply=eleveldb:put(Db,list_to_binary(Key),erlang:term_to_binary(Value),[]),
+    {ok,Reply,State}
 .
 %%--------------------------------------------------------------------
 %% @private

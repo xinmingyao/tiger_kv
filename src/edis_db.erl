@@ -77,6 +77,8 @@ run(Db, Command, Timeout) ->
 	       gen_zab_server:proposal_call(Db,Command,Timeout);
 	    #edis_command{cmd = <<"SET">>} ->
 	       gen_zab_server:proposal_call(Db,Command,Timeout);
+	   #edis_command{cmd = <<"DEL">>} ->
+	       gen_zab_server:proposal_call(Db,Command,Timeout);
 	    _->
 	       gen_zab_server:call(Db, Command, Timeout) 
 	   end,
@@ -156,12 +158,10 @@ handle_commit(#edis_command{cmd = <<"SET">>, args = [Key, Value]}, From, State,Z
 %% -- Keys -----------------------------------------------------------------------------------------
 handle_commit(#edis_command{cmd = <<"DEL">>, args = Keys}, _From, State,_ZabServerInfo) ->
   DeleteActions =
-      [{delete, Key} || Key <- Keys, exists_item(eredis, State#state.db, Key)],
+      [eredis:delete(State#state.db, Key) || Key <- Keys],
   Reply =
-    case eredis:delete(State#state.db, DeleteActions) of
-      ok -> {ok, length(DeleteActions)};
-      {error, Reason} -> {error, Reason}
-    end,
+	{ok, length(DeleteActions)},
+
   {ok, Reply, stamp(Keys, write, State)}.
 
 %% @hidden
