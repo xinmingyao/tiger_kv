@@ -191,8 +191,6 @@ stamp(_, _Action, State) -> State.
 %% @private
 
 %% @private
-exists_item(Mod, Ref, Key) ->
-  not_found /= get_item(Mod, Ref, any, Key).
 
 %% @private
 get_item(Mod, Ref, Types, Key) when is_list(Types) ->
