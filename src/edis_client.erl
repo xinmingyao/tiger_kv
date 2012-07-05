@@ -58,6 +58,18 @@ disconnect(Client) ->
 %% ====================================================================
 %% @hidden
 
+
+-define(TCP_OPTIONS,[binary,
+                     {packet, line},
+                     {keepalive, true},
+                     {active, false},
+                     {reuseaddr, true},
+                     {nodelay, true}, %% We want to be informed even when packages are small
+                     {backlog, 128000}, %% We don't care if we have logs of pending connections, we'll process them anyway
+                     {send_timeout, 5000}, %% If we couldn't send a message in this interval, something is definitively wrong...
+                     {send_timeout_close, true} %%... and therefore the connection should be closed
+                     ]).
+
 init([Socket,_Transport,_TransOps]) ->
   % Now we own the socket
   PeerPort =
@@ -66,6 +78,7 @@ init([Socket,_Transport,_TransOps]) ->
       Error -> Error
     end,
   ?INFO("New Client: ~p ~n", [PeerPort]),
+%  ok = inet:setopts(Socket, ?TCP_OPTIONS),
   ok = inet:setopts(Socket, [{active, once}, {packet, line}, binary]),
   _ = erlang:process_flag(trap_exit, true), %% We want to know even if it stops normally
   {ok, CmdRunner} = edis_command_runner:start_link(Socket),
