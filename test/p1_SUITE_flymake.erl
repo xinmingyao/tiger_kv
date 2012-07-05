@@ -1,8 +1,9 @@
--module(redis1_SUITE).
+-module('p1_SUITE').
 -compile(export_all).
 -include_lib("common_test/include/ct.hrl").
 -compile([{parse_transform, lager_transform}]).
 %-include("zabe_main.hrl").
+
 
 init_per_suite(Config)->
 
@@ -24,20 +25,16 @@ setup() ->
     application:start(lager),
     application:start(sasl),
     application:start(erlbert),
-%    application:start(zab_engine),
     application:start(cowboy)
     .
 
 local()->
-    zabe_proposal_leveldb_backend:start_link("/tmp/p1.db",[]),
-    cowboy:start_listener(redis,100,cowboy_tcp_transport,[{port,6379}],edis_client,[]).
+    cowboy:start_listener(bert,100,cowboy_tcp_transport,[{port,11211}],memcached_frontend,[]).
 
 n1()->
-        zabe_proposal_leveldb_backend:start_link("/tmp/p2.db",[]),
-    cowboy:start_listener(redis,100,cowboy_tcp_transport,[{port,6380}],edis_client,[]).
+    cowboy:start_listener(bert,100,cowboy_tcp_transport,[{port,11212}],memcached_frontend,[]).
 n2()->
-    zabe_proposal_leveldb_backend:start_link("/tmp/p3.db",[]),
-    cowboy:start_listener(redis,100,cowboy_tcp_transport,[{port,6381}],edis_client,[]).
+    cowboy:start_listener(bert,100,cowboy_tcp_transport,[{port,11213}],memcached_frontend,[]).
 
 cleanup(_) ->
     application:stop(lager),
@@ -63,7 +60,6 @@ all()->
     [elect].
 
 elect(Config)->
-    os:cmd("rm -rf /tmp/*"),
     D1="/tmp/1.db",
     D2="/tmp/2.db",
     D3="/tmp/3.db",
@@ -91,12 +87,12 @@ elect(Config)->
     {ok,_}=rpc:call('n1@localhost',?MODULE,n1,[]),
     {ok,_}=rpc:call('n2@localhost',?MODULE,n2,[]),
     timer:sleep(800),
-
-    {ok,_}=edis_db:start_link(Nodes,Op1,D1),    
+lager:info("4444444444444444444"),
+    {ok,_}=zabe_learn_leveldb:start_link(Nodes,Op1,D1),    
     
-    {ok,_}=rpc:call('n1@localhost',edis_db,start_link,[Nodes,Op2,D2]),
+    {ok,_}=rpc:call('n1@localhost',zabe_learn_leveldb,start_link,[Nodes,Op2,D2]),
 
-    {ok,_}=rpc:call('n2@localhost',edis_db,start_link,[Nodes,Op3,D3]),
+    {ok,_}=rpc:call('n2@localhost',zabe_learn_leveldb,start_link,[Nodes,Op3,D3]),
     timer:sleep(800),
     ok
     .
