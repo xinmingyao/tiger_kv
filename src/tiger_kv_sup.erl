@@ -54,11 +54,11 @@ init([]) ->
 
     RedisBackEnd = {redis_back_end,
 		    {edis_db, start_link,
-		     [MasterNodes,[],[]]},
+		     [MasterNodes,[{prefix,aa}],[]]},
 		    permanent, 5000, worker, [redis_back_end]},
     MemBackEnd = {mem_back_end,
 		    {memcached_backend, start_link,
-		     [MasterNodes,[],DbDir]},
+		     [MasterNodes,[{prefix,bb}],DbDir]},
 		    permanent, 5000, worker, [mem_back_end]},
     
     % Build the process list...
