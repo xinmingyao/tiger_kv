@@ -48,7 +48,7 @@ stop(Pid) ->
 
 
 start_link (_ListenPid,Socket,Transport,TransOps) ->
-    gen_fsm:start_link( ?MODULE, [Socket,Transport,TransOps],?FSMOPTS).
+    gen_fsm:start_link( ?MODULE, [Socket,Transport,TransOps],[]).
 
 %%%===================================================================
 %%% gen_server callbacks
