@@ -79,7 +79,7 @@ init([Socket,_Transport,_TransOps]) ->
     end,
   ?INFO("New Client: ~p ~n", [PeerPort]),
 %  ok = inet:setopts(Socket, ?TCP_OPTIONS),
-  ok = inet:setopts(Socket, [{active, once}, {packet, line}, binary]),
+  ok = inet:setopts(Socket, [{active, once},  {nodelay, true},{packet, line}, binary]),
   _ = erlang:process_flag(trap_exit, true), %% We want to know even if it stops normally
   {ok, CmdRunner} = edis_command_runner:start_link(Socket),
   {ok, command_start, #state{socket         = Socket,

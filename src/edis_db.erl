@@ -121,6 +121,7 @@ Reply =
 		  #edis_item{type = string, value = Value}=V2
 		      , {ok, Value}
     end,
+    ?INFO("~p",[Reply]),
   {reply, Reply, stamp(Key, read, State)};
 
 

@@ -180,7 +180,7 @@ parse_command(#edis_command{cmd = <<"DECR">>}) -> throw(bad_arg_num);
 parse_command(C = #edis_command{cmd = <<"DECRBY">>, args = [Key, Decrement]}) -> 
   C#edis_command{args = [Key, edis_util:binary_to_integer(Decrement)],result_type = number, group=strings};
 parse_command(#edis_command{cmd = <<"DECRBY">>}) -> throw(bad_arg_num);
-parse_command(C = #edis_command{cmd = <<"GET">>, args = [_Key]}) -> C#edis_command{result_type = string, group=strings};%%todo fix
+parse_command(C = #edis_command{cmd = <<"GET">>, args = [_Key]}) -> C#edis_command{result_type = bulk, group=strings};
 parse_command(#edis_command{cmd = <<"GET">>}) -> throw(bad_arg_num);
 parse_command(C = #edis_command{cmd = <<"GETBIT">>, args = [Key, Offset]}) ->
   try edis_util:binary_to_integer(Offset) of
