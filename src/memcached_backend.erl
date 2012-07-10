@@ -82,12 +82,12 @@ init([WorkDir]) ->
     end.
 
 handle_commit({delete,Key},Zxid, State=#state{leveldb=Db},_ZabServerInfo) ->   
-    eleveldb:put(Db,?LAST_ZXID_KEY,term_to_binary(Zxid),[]),
-    Reply=eleveldb:delete(Db,list_to_binary(Key),[]),
+    Para=[{delete, Key},{put,?LAST_ZXID_KEY,term_to_binary(Zxid)}],
+    Reply=eleveldb:write(Db,Para,[]),
     {ok,Reply,State};
 handle_commit({put,Key,Value},Zxid, State=#state{leveldb=Db},_ZabServerInfo) ->   
-    eleveldb:put(Db,?LAST_ZXID_KEY,term_to_binary(Zxid),[]),
-    Reply=eleveldb:put(Db,list_to_binary(Key),erlang:term_to_binary(Value),[]),
+    Para=[{put,list_to_binary(Key),erlang:term_to_binary(Value)},{put,?LAST_ZXID_KEY,term_to_binary(Zxid)}],
+    Reply=eleveldb:write(Db,Para,[]),
     {ok,Reply,State}
 .
 %%--------------------------------------------------------------------

@@ -108,7 +108,10 @@ mnesia_get(Key,Return) ->
 		    exit("todo delete"),
 		    memcached_backend:delete(binary_to_list(Key)),
 		    none
-	    end
+	    end;
+	not_found ->none;
+	R ->R
+			
 	
     end.
 item_value(value, #onecached{flags = Flags, data = Data}) ->
