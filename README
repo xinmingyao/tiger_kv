@@ -7,3 +7,8 @@ frontend
 backend
 
  leveldb ,redis support
+
+
+test:
+ 
+  ./rebar ct skip_deps=true
