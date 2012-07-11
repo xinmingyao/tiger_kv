@@ -84,15 +84,16 @@ elect(Config)->
     timer:sleep(300),
 
     {ok,_}=memcached_backend:start_link(Nodes,Op1,D1),    
-    
+    merle:set("t","tt"),
     {ok,_}=rpc:call('n1@localhost',memcached_backend,start_link,[Nodes,Op2,D2]),
     {ok,_}=rpc:call('n2@localhost',memcached_backend,start_link,[Nodes,Op3,D3]),
      timer:sleep(800),    
     merle:connect(),
-    merle:set("a","aa"),
+    "not_ready"=merle:set("tt","aa"),
+    "not_ready"=merle:delete("tt"),
     "aa"=merle:getkey("a"),
     ok=merle:delete("a"),
-     undefined=merle:getkey("a"),
+    undefined=merle:getkey("a"),
     slave:stop('n1@localhost'),
     slave:stop('n2@localhost'),
     

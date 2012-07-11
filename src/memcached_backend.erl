@@ -30,12 +30,38 @@
 %%%===================================================================
 
 put(Key,Value)->
-    gen_zab_server:proposal_call(?SERVER,{put,Key,Value})
+    case catch  gen_zab_server:proposal_call(?SERVER,{put,Key,Value}) of
+        {error,not_ready} ->
+            {error,"not_ready"};
+	{ok,Res} ->
+            Res;
+        {'EXIT',Reason} ->
+            {error,Reason};
+	Res->
+	    Res
+    end
+   %
     .
 delete(Key)->
-    gen_zab_server:proposal_call(?SERVER,{delete,Key}).
+    case catch  gen_zab_server:proposal_call(?SERVER,{delete,Key}) of
+        {error,not_ready} ->
+            {error,"not_ready"};
+	{ok,Res} ->
+            Res;
+        {'EXIT',Reason} ->
+            {error,Reason};
+	Res->
+	    Res
+    end
+    .
 get(Key)->
-    gen_zab_server:call(?SERVER,{get,Key}).
+    case catch  gen_zab_server:call(?SERVER,{get,Key}) of
+        {'EXIT',Reason} ->
+            {error,Reason};
+	Res->
+	    Res
+    end
+    .
 
 %%--------------------------------------------------------------------
 %% @doc
