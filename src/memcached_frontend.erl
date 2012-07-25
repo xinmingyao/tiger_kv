@@ -191,7 +191,7 @@ process_command({line, "delete "++Line}, #state{socket=Socket, storage=Storage}=
 		    send_command(Socket, "DELETED");
 		none ->
 		    send_command(Socket, "NOT_FOUND");
-		Other ->
+		{error,Other} ->
 		    ?ERROR_MSG("SERVER_ERROR~n~p~n", [Other]),
 		    send_command(Socket, io_lib:format("SERVER_ERROR ~p", [Other]))
 	    end;
@@ -257,7 +257,7 @@ process_data_block({line, Line}, #state{socket=Socket,
 	    case catch onecached_storage:store_item(Storage, NewStorageCommand) of
 		ok ->
 		    send_command(Socket, "STORED");
-		Other ->
+		{error,Other} when is_list(Other) ->
 		    ?ERROR_MSG("SERVER_ERROR~n~p~n", [Other]),
 		    send_command(Socket, "SERVER_ERROR "++Other)
 	    end,
@@ -338,7 +338,7 @@ send_item(Socket, Storage, Key) ->
 	    send_command(Socket, SData);
 	none ->
 	    ok;
-	Other ->
+	{error,Other} ->
 	    ?ERROR_MSG("SERVER_ERROR~n~p~n", [Other]),
 	    send_command(Socket, "SERVER_ERROR "++Other)
     end.
