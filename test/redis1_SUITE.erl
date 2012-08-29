@@ -23,17 +23,24 @@ setup() ->
     application:start(lager),
     application:start(sasl),
     application:start(erlbert),
-    application:start(cowboy)
+    application:start(cowboy),
+   
+    C1=code:lib_dir(eredis_engine,'c_src/redis/redis.conf'),
+    application:set_env(tiger_kv,redis_conf,C1),
+    application:set_env(tiger_kv,redis_db_dir,"/tmp")
     .
 
 local()->
     zabe_proposal_leveldb_backend:start_link("/tmp/p1.db",[]),
-    cowboy:start_listener(redis,100,cowboy_tcp_transport,[{port,6379}],edis_client,[]).
+
+    cowboy:start_listener(redis,100,cowboy_tcp_transport,[{port,6379},{ip,{192,168,208,85}}],edis_client,[]).
 
 n1()->
     zabe_proposal_leveldb_backend:start_link("/tmp/p2.db",[]),
+
     cowboy:start_listener(redis,100,cowboy_tcp_transport,[{port,6380}],edis_client,[]).
 n2()->
+
     zabe_proposal_leveldb_backend:start_link("/tmp/p3.db",[]),
     cowboy:start_listener(redis,100,cowboy_tcp_transport,[{port,6381}],edis_client,[]).
 
@@ -83,15 +90,16 @@ elect(Config)->
     {ok,_}=rpc:call('n2@localhost',?MODULE,n2,[]),
     timer:sleep(300),
 
-    {ok,_}=edis_db:start_link(Nodes,Op1,D1),    
+    C1=code:lib_dir(eredis_engine,'c_src/redis/redis.conf'),
+    {ok,_}=edis_db:start_link(Nodes,Op1,C1,D1),    
     
-    {ok,_}=rpc:call('n1@localhost',edis_db,start_link,[Nodes,Op2,D2]),
-    {ok,_}=rpc:call('n2@localhost',edis_db,start_link,[Nodes,Op3,D3]),
+    {ok,_}=rpc:call('n1@localhost',edis_db,start_link,[Nodes,Op2,C1,D2]),
+    {ok,_}=rpc:call('n2@localhost',edis_db,start_link,[Nodes,Op3,C1,D3]),
     
     timer:sleep(800),
 
-    slave:stop('n1@localhost'),
-    slave:stop('n2@localhost'),
+   % slave:stop('n1@localhost'),
+   % slave:stop('n2@localhost'),
     ok
     .
 

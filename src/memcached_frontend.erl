@@ -193,7 +193,8 @@ process_command({line, "delete "++Line}, #state{socket=Socket, storage=Storage}=
 		    send_command(Socket, "NOT_FOUND");
 		{error,Other} ->
 		    ?ERROR_MSG("SERVER_ERROR~n~p~n", [Other]),
-		    send_command(Socket, io_lib:format("SERVER_ERROR ~p", [Other]))
+		    send_command(Socket, "SERVER_ERROR "++Other)
+		    %send_command(Socket, io_lib:format("SERVER_ERROR ~p", [Other]))
 	    end;
 	_ ->
 	    ?ERROR_MSG("CLIENT_ERROR invalid delete command format~n~p~n", [Line]),

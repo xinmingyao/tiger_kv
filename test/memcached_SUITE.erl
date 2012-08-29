@@ -39,10 +39,11 @@ n2()->
 
 cleanup(_) ->
     application:stop(lager),
+    application:stop(cowboy),
     error_logger:tty(true).
 
 end_per_suite(Config)->
-
+    cleanup(Config),
     Config.
 
 init_per_testcase(_,Config)->
@@ -84,13 +85,17 @@ elect(Config)->
     timer:sleep(300),
 
     {ok,_}=memcached_backend:start_link(Nodes,Op1,D1),    
-    merle:set("t","tt"),
+    timer:sleep(200),
+    merle:connect(),
+    "SERVER_ERROR not_ready"=merle:set("tt","aa"),
+    error_logger:info_msg("2222~p",merle:delete("tt")),
+    "SERVER_ERROR not_ready"=merle:delete("tt"),
+   % "SERVER_ERROR not_ready"=merle:delete("tt"),
+    
     {ok,_}=rpc:call('n1@localhost',memcached_backend,start_link,[Nodes,Op2,D2]),
     {ok,_}=rpc:call('n2@localhost',memcached_backend,start_link,[Nodes,Op3,D3]),
-     timer:sleep(800),    
-    merle:connect(),
-    "not_ready"=merle:set("tt","aa"),
-    "not_ready"=merle:delete("tt"),
+    timer:sleep(800),    
+    merle:set("a","aa"),
     "aa"=merle:getkey("a"),
     ok=merle:delete("a"),
     undefined=merle:getkey("a"),
