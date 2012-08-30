@@ -24,7 +24,7 @@
 -behaviour(supervisor).
 %% API
 -export([start_link/0]).
-
+-compile([{parse_transform, lager_transform}]). 
 %% Supervisor callbacks
 -export([init/1]).
 
@@ -51,12 +51,24 @@ start_link() ->
 -define(PROPLIST_KEY_VALUE(KEY,LISTS,DEFAULT),
 	case proplists:get_value(KEY,LISTS) of
 	    undefined->
-		DEFAULT;
-	    _->proplists:get_value(KEY,LISTS)
+		getip_by_string(DEFAULT);
+	    _->getip_by_string(proplists:get_value(KEY,LISTS))
 	end
        ).
 
 
+getip_by_string(Ip)->
+    case re:run(Ip,"([0-9]+).([0-9]+).([0-9]+).([0-9]+)",[]) of
+	{match,[_,{S1,E1},{S2,E2},{S3,E3},{S4,E4}]}->
+	    {list_to_integer(string:substr(Ip,S1+1,E1)),
+	     list_to_integer(string:substr(Ip,S2+1,E2)),
+	     list_to_integer(string:substr(Ip,S3+1,E3)),
+	     list_to_integer(string:substr(Ip,S4+1,E4))}
+		;
+	_->
+	    lager:debug("ip is not corrrect format:~p,use 127.0.0.1",[Ip]), 
+	    {127,0,0,1}
+    end.
 init([]) ->
     
     {ok,MasterNodes}= tiger_core_util:get_env(master_nodes,['m1@127.0.0.1','m2@127.0.0.1','m3@127.0.0.1']),
@@ -66,7 +78,7 @@ init([]) ->
 	proplists:get_value(enable,MemValues) of 
 	true->
 	    MemPort= ?PROPLIST_KEY_VALUE(port,MemValues,11211),
-	    {ok,Ip}= ?PROPLIST_KEY_VALUE(ip,MemValues,{127,0,0,1}),
+	    Ip= ?PROPLIST_KEY_VALUE(ip,MemValues,{127,0,0,1}),
 	    {ok,_}=cowboy:start_listener(memcached,100,cowboy_tcp_transport,[{port,MemPort},{ip,Ip}],memcached_frontend,[]),
 	    DbDir=proplists:get_value(db_dir,MemValues),
 	    Mopts=case lists:keyfind(gc_by_zab_log_count,1,MemValues) of
@@ -96,8 +108,8 @@ init([]) ->
     {ok,RedisValues}=tiger_kv_util:get_env(redis,R),
     case proplists:get_value(enable,RedisValues) of
 	true->
-	    {ok,RedisPort}=?PROPLIST_KEY_VALUE(port,RedisValues,6379),
-	    {ok,Ip1}= ?PROPLIST_KEY_VALUE(ip,RedisValues,{127,0,0,1}),
+	    RedisPort=?PROPLIST_KEY_VALUE(port,RedisValues,6379),
+	    Ip1= ?PROPLIST_KEY_VALUE(ip,RedisValues,{127,0,0,1}),
 	    {ok,_}=cowboy:start_listener(redis,100,cowboy_tcp_transport,[{port,RedisPort},{ip,Ip1}, {nodelay, true}],edis_client,[]),
 	    erlcron:cron(proplists:get_value(snapshot,RedisValues)),
 	    erlcron:cron(proplists:get_value(gc,RedisValues)),
@@ -123,3 +135,12 @@ init([]) ->
 
 
 
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+getip_test()->
+    ?assertEqual(getip_by_string("1.2.4.5"),{1,2,4,5}),
+    ?assertEqual(getip_by_string("ttt"),{127,0,0,1}).
+    
+
+-endif.
