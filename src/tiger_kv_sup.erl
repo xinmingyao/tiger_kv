@@ -52,7 +52,7 @@ start_link() ->
 	case proplists:get_value(KEY,LISTS) of
 	    undefined->
 		DEFAULT;
-	    AA->AA
+	    _->proplists:get_value(KEY,LISTS)
 	end
        ).
 
@@ -60,7 +60,7 @@ start_link() ->
 init([]) ->
     
     {ok,MasterNodes}= tiger_core_util:get_env(master_nodes,['m1@127.0.0.1','m2@127.0.0.1','m3@127.0.0.1']),
-    M=[{enable,true},{port,11211},{ip,{127,0,0,1}},{db_dir,"/tmp/memcached"}],
+    M=[{enable,true},{port,11211},{ip,{127,0,0,1}},{db_dir,"/tmp/memcached"},{gc_by_zab_log_count,1000}],
     {ok,MemValues}=tiger_kv_util:get_env(memcached,M),
     case
 	proplists:get_value(enable,MemValues) of 
@@ -69,10 +69,15 @@ init([]) ->
 	    {ok,Ip}= ?PROPLIST_KEY_VALUE(ip,MemValues,{127,0,0,1}),
 	    {ok,_}=cowboy:start_listener(memcached,100,cowboy_tcp_transport,[{port,MemPort},{ip,Ip}],memcached_frontend,[]),
 	    DbDir=proplists:get_value(db_dir,MemValues),
-
+	    Mopts=case lists:keyfind(gc_by_zab_log_count,1,MemValues) of
+		      false->
+			  [{gc_by_zab_log_count,1000},{prefix,"bb"}];
+		      V2->
+			  [V2,{prefix,"bb"}]
+		  end,
 	    B1={mem_back_end,
 		    {memcached_backend, start_link,
-		     [MasterNodes,[{prefix,"bb"}],DbDir]},
+		     [MasterNodes,Mopts,DbDir]},
 	     permanent, 5000, worker, [mem_back_end]},
 	    put(?BACKEND,[B1])
 
@@ -98,7 +103,7 @@ init([]) ->
 	    erlcron:cron(proplists:get_value(gc,RedisValues)),
 	    R2={redis_back_end,
 		    {edis_db, start_link,
-		     [MasterNodes,[{prefix,"aa"}],[proplists:get_value(conf,RedisValues),
+		     [MasterNodes,[{prefix,"aa"},{is_memory_db,true}],[proplists:get_value(conf,RedisValues),
 						   proplists:get_value(db_dir,RedisValues)]]},
 		permanent, 5000, worker, [redis_back_end]},
 	    B2=get(?BACKEND),put(?BACKEND,[R2|B2]),
