@@ -57,6 +57,14 @@ start_link() ->
        ).
 
 
+-define(PROPLIST_KEY_VALUE2(KEY,LISTS,DEFAULT),
+	case proplists:get_value(KEY,LISTS) of
+	    undefined->
+		getip_by_string(DEFAULT);
+	    _->proplists:get_value(KEY,LISTS)
+	end
+       ).
+
 getip_by_string(Ip)->
     case re:run(Ip,"([0-9]+).([0-9]+).([0-9]+).([0-9]+)",[]) of
 	{match,[_,{S1,E1},{S2,E2},{S3,E3},{S4,E4}]}->
@@ -77,7 +85,7 @@ init([]) ->
     case
 	proplists:get_value(enable,MemValues) of 
 	true->
-	    MemPort= ?PROPLIST_KEY_VALUE(port,MemValues,11211),
+	    MemPort= ?PROPLIST_KEY_VALUE2(port,MemValues,11211),
 	    Ip= ?PROPLIST_KEY_VALUE(ip,MemValues,{127,0,0,1}),
 	    {ok,_}=cowboy:start_listener(memcached,100,cowboy_tcp_transport,[{port,MemPort},{ip,Ip}],memcached_frontend,[]),
 	    DbDir=proplists:get_value(db_dir,MemValues),
@@ -108,7 +116,7 @@ init([]) ->
     {ok,RedisValues}=tiger_kv_util:get_env(redis,R),
     case proplists:get_value(enable,RedisValues) of
 	true->
-	    RedisPort=?PROPLIST_KEY_VALUE(port,RedisValues,6379),
+	    RedisPort=?PROPLIST_KEY_VALUE2(port,RedisValues,6379),
 	    Ip1= ?PROPLIST_KEY_VALUE(ip,RedisValues,{127,0,0,1}),
 	    {ok,_}=cowboy:start_listener(redis,100,cowboy_tcp_transport,[{port,RedisPort},{ip,Ip1}, {nodelay, true}],edis_client,[]),
 	    erlcron:cron(proplists:get_value(snapshot,RedisValues)),
