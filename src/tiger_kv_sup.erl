@@ -123,8 +123,8 @@ init([]) ->
 	    erlcron:cron(proplists:get_value(gc,RedisValues)),
 	    R2={redis_back_end,
 		    {edis_db, start_link,
-		     [MasterNodes,[{prefix,"aa"},{is_memory_db,true}],[proplists:get_value(conf,RedisValues),
-						   proplists:get_value(db_dir,RedisValues)]]},
+		     [MasterNodes,[{prefix,"aa"},{is_memory_db,true}],proplists:get_value(conf,RedisValues),
+						   proplists:get_value(db_dir,RedisValues)]},
 		permanent, 5000, worker, [redis_back_end]},
 	    B2=get(?BACKEND),put(?BACKEND,[R2|B2]),
 	    ok;
