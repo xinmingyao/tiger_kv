@@ -108,8 +108,8 @@ run(Db, Command, Timeout) ->
 init([Conf,DbDir]) ->
    % {ok,C1}=tiger_kv_util:get_env(redis_conf,"/tmp/redis.conf"),
     {LastFile,Zxid}=case get_last_file_name(DbDir) of
-			{ok,T}->T2=erlang:list_to_integer(T),
-				{filename:join(DbDir,T++".rdb"),zabe_util:decode_key(T2)};
+			{ok,T}->%T2=erlang:list_to_integer(T),
+				{filename:join(DbDir,T++".rdb"),zabe_util:decode_zxid(T)};
 			_->{0,{0,0}}
 		    end,
     LastFile,
@@ -191,10 +191,10 @@ handle_commit(#edis_command{cmd = <<"DEL">>, args = Keys}, _From, State,_ZabServ
 
 do_snapshot(LastZxid,State)->
     T= zabe_util:encode_zxid(LastZxid),
-    FileName=filename:join(State#state.redis_db_dir,erlang:integer_to_list(T)++".rdb"),
+    FileName=filename:join(State#state.redis_db_dir,T++".rdb"),
     case eredis_engine:save_db(State#state.db,FileName) of
 	ok->
-	    lager:debgu("snapshot db:~p ok",[FileName]),
+	    lager:debug("snapshot db:~p ok",[FileName]),
 	    {ok,State#state{last_snap_filename=FileName}};
 	_-> lager:error("db snapshot error"),
 	    {error,"save error"}
