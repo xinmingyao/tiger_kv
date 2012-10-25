@@ -9,10 +9,16 @@
 %%% @todo We need to add info to INFO
 %%% @end
 %%%-------------------------------------------------------------------
+
 -module(edis_db).
 -author('Fernando Benavides <fernando.benavides@inakanetworks.com>').
 -author('Chad DePue <chad@inakanetworks.com>').
+-author(' yaoxinming <yaoxinming@gmail.com').
 
+%% add zab protocol
+%% support PING,SET,MSET,GET,MGET,DEL
+%  todo ?,EXIST,INFO
+%%
 -behaviour(gen_zab_server).
 -compile([{parse_transform, lager_transform}]). 
 -include("edis.hrl").
@@ -86,7 +92,9 @@ run(Db, Command, Timeout) ->
 	       gen_zab_server:proposal_call(Db,Command,Timeout);
 	   #edis_command{cmd = <<"DEL">>} ->
 	       gen_zab_server:proposal_call(Db,Command,Timeout);
-	    _->
+	   #edis_command{cmd = <<"SELECT">>}->
+	       ok;%% select db is not support this version
+	   _->
 	       gen_zab_server:call(Db, Command, Timeout) 
 	   end,
     lager:info("result ~p",[Re]),

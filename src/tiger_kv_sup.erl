@@ -35,6 +35,11 @@
 -define(CHILD(I, Type), ?CHILD(I, Type, 5000)).
 -define (IF (Bool, A, B), if Bool -> A; true -> B end).
 
+-define(MEMCACHED_BUCKET,1).
+-define(REDIS_BUCKET,2).
+
+
+
 %% ===================================================================
 %% API functions
 %% ===================================================================
@@ -91,9 +96,9 @@ init([]) ->
 	    DbDir=proplists:get_value(db_dir,MemValues),
 	    Mopts=case lists:keyfind(gc_by_zab_log_count,1,MemValues) of
 		      false->
-			  [{gc_by_zab_log_count,1000},{prefix,"bb"}];
+			  [{gc_by_zab_log_count,1000},{bucket,?MEMCACHED_BUCKET}];
 		      V2->
-			  [V2,{prefix,"bb"}]
+			  [V2,{bucket,?MEMCACHED_BUCKET}]
 		  end,
 	    B1={mem_back_end,
 		    {memcached_backend, start_link,
@@ -123,7 +128,7 @@ init([]) ->
 	    erlcron:cron(proplists:get_value(gc,RedisValues)),
 	    R2={redis_back_end,
 		    {edis_db, start_link,
-		     [MasterNodes,[{prefix,"aa"},{is_memory_db,true}],proplists:get_value(conf,RedisValues),
+		     [MasterNodes,[{bucket,?REDIS_BUCKET},{is_memory_db,true}],proplists:get_value(conf,RedisValues),
 						   proplists:get_value(db_dir,RedisValues)]},
 		permanent, 5000, worker, [redis_back_end]},
 	    B2=get(?BACKEND),put(?BACKEND,[R2|B2]),

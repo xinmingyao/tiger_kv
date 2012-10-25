@@ -163,10 +163,8 @@ parse_command(#edis_command{cmd = <<"QUIT">>}) -> throw(bad_arg_num);
 parse_command(C = #edis_command{cmd = <<"AUTH">>, args = [_Password]}) -> C#edis_command{result_type = ok, group=connection};
 parse_command(#edis_command{cmd = <<"AUTH">>}) -> throw(bad_arg_num);
 parse_command(C = #edis_command{cmd = <<"SELECT">>, args = [Db]}) ->
-  case {edis_util:binary_to_integer(Db, 0), edis_config:get(databases)} of
-    {DbIndex, Dbs} when DbIndex < 0 orelse DbIndex >= Dbs -> throw({error, "invalid DB index"});
-    {DbIndex, _} -> C#edis_command{args = [DbIndex], result_type = ok, group=connection}
-  end;
+    C#edis_command{args = [Db], result_type = ok, group=connection}
+  ;
 parse_command(#edis_command{cmd = <<"SELECT">>}) -> throw(bad_arg_num);
 parse_command(C = #edis_command{cmd = <<"PING">>, args = []}) -> C#edis_command{result_type = string, group=connection};
 parse_command(#edis_command{cmd = <<"PING">>}) -> throw(bad_arg_num);
