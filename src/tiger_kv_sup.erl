@@ -92,7 +92,7 @@ init([]) ->
 	true->
 	    MemPort= ?PROPLIST_KEY_VALUE2(port,MemValues,11211),
 	    Ip= ?PROPLIST_KEY_VALUE(ip,MemValues,{127,0,0,1}),
-	    {ok,_}=cowboy:start_listener(memcached,100,cowboy_tcp_transport,[{port,MemPort},{ip,Ip}],memcached_frontend,[]),
+	    {ok,_}=ranch:start_listener(memcached,100,ranch_tcp,[{port,MemPort},{ip,Ip}],memcached_frontend,[]),
 	    DbDir=proplists:get_value(db_dir,MemValues),
 	    Mopts=case lists:keyfind(gc_by_zab_log_count,1,MemValues) of
 		      false->
@@ -123,7 +123,7 @@ init([]) ->
 	true->
 	    RedisPort=?PROPLIST_KEY_VALUE2(port,RedisValues,6379),
 	    Ip1= ?PROPLIST_KEY_VALUE(ip,RedisValues,{127,0,0,1}),
-	    {ok,_}=cowboy:start_listener(redis,100,cowboy_tcp_transport,[{port,RedisPort},{ip,Ip1}, {nodelay, true}],edis_client,[]),
+	    {ok,_}=ranch:start_listener(redis,100,ranch_tcp,[{port,RedisPort},{ip,Ip1}, {nodelay, true}],edis_client,[]),
 	    erlcron:cron(proplists:get_value(snapshot,RedisValues)),
 	    erlcron:cron(proplists:get_value(gc,RedisValues)),
 	    R2={redis_back_end,

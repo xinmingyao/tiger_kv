@@ -153,7 +153,7 @@ Reply =
 		  #edis_item{type = string, value = Value}=V2
 		      , {ok, Value}
     end,
-    ?INFO("~p",[Reply]),
+    ?DEBUG("~p",[Reply]),
   {reply, Reply, stamp(Key, read, State)};
 
 

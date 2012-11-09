@@ -61,9 +61,9 @@ start_mem_slave(Name,Port)->
 start_mem_slave2(Port)->
     Opt=[{bucket,1}],
     start_lager(),
-    application:start(cowboy),
+    application:start(ranch),
     zabe_proposal_leveldb_backend:start_link(get_zab(),[]),
-    cowboy:start_listener(memcached,100,cowboy_tcp_transport,[{port,Port}],memcached_frontend,[]),
+    ranch:start_listener(memcached,100,ranch_tcp,[{port,Port}],memcached_frontend,[]),
     memcached_backend:start_link(?NODES,Opt,get_db()).
 
 
@@ -75,9 +75,9 @@ start_redis_slave(Name,Port)->
 start_redis_slave2(Port)->
     Opt=[{bucket,2}],
     start_lager(),
-    application:start(cowboy),
+    application:start(ranch),
     zabe_proposal_leveldb_backend:start_link(get_zab(),[]),
-    cowboy:start_listener(redis,100,cowboy_tcp_transport,[{port,Port}],edis_client,[]),
+    ranch:start_listener(redis,100,ranch_tcp,[{port,Port}],edis_client,[]),
     C1=code:lib_dir(eredis_engine,'c_src/redis/redis.conf'),
     edis_db:start_link(?NODES,Opt,C1,get_db()).
 
@@ -129,7 +129,7 @@ mem_crud(_Config)->
    % "SERVER_ERROR not_ready"=merle:delete("tt"),
     start_mem_slave('n2',11212),
     start_mem_slave('n3',11213),
-    timer:sleep(1500),    
+    timer:sleep(2500),    
     merle:set("a","aa"),
     "aa"=merle:getkey("a"),
     ok=merle:delete("a"),
