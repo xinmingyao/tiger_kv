@@ -6,7 +6,7 @@
 -module(memcached_frontend).
 -author('jerome.sautret@process-one.net').
 -vsn('$Revision$ ').
-
+-modify('yaoxinming@gmail.com').
 % Code for the threads that handle client connexions
 
 -behaviour(gen_fsm).
@@ -21,7 +21,7 @@
 -export([start_link/4, stop/1]).
 %% internal function
 -export([loop/3]).
-
+-compile([{parse_transform, lager_transform}]).
 %% gen_fsm callbacks
 -export([init/1,
 	 process_command/2,
@@ -74,10 +74,9 @@ init([Socket,_,_]) ->
 			       {reuseaddr, true},
 			       {nodelay, true},
 			       {keepalive, true}]),
-    Storage = mnesia, % TODO -> get from parameters
     % run TCP server
     _Pid = proc_lib:spawn_link(?MODULE, loop, [self(), Socket, ""]),
-    {ok, process_command, #state{socket=Socket, storage=Storage}}.
+    {ok, process_command, #state{socket=Socket}}.
 
 %%====================================================================
 %% TCP server
@@ -136,7 +135,7 @@ process_command({line, "add "++Line}, StateData) ->
     case StorageCommand of
 	#storage_command{key=Key} ->
 	    NewStorageCommand = StateData#state{command=StorageCommand},
-	    case catch onecached_storage:has_item(StateData#state.storage, Key) of
+	    case catch onecached_storage:has_item(Key) of
 		false ->
 		    {next_state, process_data_block, NewStorageCommand};
 		_ ->
@@ -175,18 +174,13 @@ process_command({line, "get "++Line}, #state{socket=Socket, storage=Storage}=Sta
     send_command(Socket, "END"),
     {next_state, process_command, StateData};
 
-% memcached "incr" command line
-process_command({line, "incr "++Line}, StateData) ->
-    process_incr_decr_command(fun(A, B) -> A+B end, Line, StateData);
-process_command({line, "decr "++Line}, StateData) ->
-    process_incr_decr_command(fun(A, B) -> A-B end, Line, StateData);
 
 % memcached "delete" command line
 % TODO second time argument support
-process_command({line, "delete "++Line}, #state{socket=Socket, storage=Storage}=StateData) ->
+process_command({line, "delete "++Line}, #state{socket=Socket, storage=_Storage}=StateData) ->
     case parse_delete_command(Line) of
 	{Key, _Time} ->
-	    case catch onecached_storage:delete_item(Storage, Key) of
+	    case catch onecached_storage:delete_item(Key) of
 		ok ->
 		    send_command(Socket, "DELETED");
 		none ->
@@ -242,7 +236,7 @@ discard_data_block({line, Line}, #state{socket=Socket} = StateData) ->
 
 % process data block that will be stored
 process_data_block({line, Line}, #state{socket=Socket,
-					storage=Storage,
+					storage=_Storage,
 					command=StorageCommand}=StateData)
   when is_record(StorageCommand, storage_command) ->
     Data = StorageCommand#storage_command.data,
@@ -255,7 +249,7 @@ process_data_block({line, Line}, #state{socket=Socket,
     Bytes = StorageCommand#storage_command.bytes,
     case length(NewData) of
 	Bytes ->
-	    case catch onecached_storage:store_item(Storage, NewStorageCommand) of
+	    case catch onecached_storage:store_item(NewStorageCommand) of
 		ok ->
 		    send_command(Socket, "STORED");
 		{error,Other} when is_list(Other) ->
@@ -323,20 +317,12 @@ terminate(_Reason, _StateName, _StateData) ->
 send_command(Socket, Command) ->
     gen_tcp:send(Socket, Command++"\r\n").
 
-send_item(Socket, Storage, Key) ->
-    case catch onecached_storage:get_item(Storage, Key) of
+send_item(Socket, _Storage, Key) ->
+    case catch onecached_storage:get_item(Key) of
 	{ok, {Flags, Data}} ->
-	    SData = case Data of
-			Value when is_integer(Value) ->
-			    integer_to_list(Value);
-			Value when is_list(Value) ->
-			    Value;
-			Value when is_binary(Value) ->
-			    binary_to_list(Value)
-		    end,
 	    send_command(Socket,
-			 io_lib:format("VALUE ~s ~w ~w", [Key, Flags, length(SData)])),
-	    send_command(Socket, SData);
+			 io_lib:format("VALUE ~s ~w ~w", [Key, Flags, length(Data)])),
+	    send_command(Socket, Data);
 	none ->
 	    ok;
 	{error,Other} ->
@@ -393,37 +379,3 @@ parse_delete_command(Line) ->
 	    error
     end.
 
-% Format of Line is
-% <key> <value>
-% return {Key, Value} when is_integer(Value)
-parse_incr_decr_command(Line) ->
-    case string:tokens(Line, " ") of
-	[Key, SValue] ->
-	    case string:to_integer(SValue) of
-		{Value, ""} ->
-		    {Key, Value};
-		_ ->
-		    error
-	    end;
-	_ ->
-	    error
-    end.
-
-
-process_incr_decr_command(Operation, Line, #state{socket=Socket, storage=Storage} = StateData) ->
-    case parse_incr_decr_command(Line) of
-	{Key, Value} ->
-	    case catch onecached_storage:update_item_value(Storage, Key, Value, Operation) of
-		{ok, NewValue} ->
-		    send_command(Socket, integer_to_list(NewValue));
-		none ->
-		    send_command(Socket, "NOT_FOUND");
-		Other ->
-		    ?ERROR_MSG("SERVER_ERROR~n~p~n", [Other]),
-		    send_command(Socket, io_lib:format("SERVER_ERROR ~p", [Other]))
-	    end;
-	_ ->
-	    ?ERROR_MSG("CLIENT_ERROR invalid incr/decr command format~n~p~n", [Line]),
-	    send_command(Socket, "CLIENT_ERROR invalid incr/decr command format: "++Line)
-    end,
-    {next_state, process_command, StateData}.
