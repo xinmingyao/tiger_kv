@@ -134,8 +134,13 @@ mem_crud(_Config)->
     "aa"=merle:getkey("a"),
     ok=merle:delete("a"),
     undefined=merle:getkey("a"),
-    stop()
-   
+    merle:set("bb",1023,1,"bb"),
+    "bb"=merle:getkey("bb"),
+    %test expire
+    timer:sleep(1000),
+    undefined=merle:getkey("bb"),
+    stop(),
+    ok 
     .
 
 

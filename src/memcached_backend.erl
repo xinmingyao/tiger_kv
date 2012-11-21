@@ -112,7 +112,7 @@ handle_commit({delete,Key},Zxid, State=#state{leveldb=Db},_ZabServerInfo) ->
     Reply=eleveldb:write(Db,Para,[]),
     {ok,Reply,State};
 handle_commit({put,Key,Value},Zxid, State=#state{leveldb=Db},_ZabServerInfo) ->   
-    Para=[{put,list_to_binary(Key),erlang:term_to_binary(Value)},{put,?LAST_ZXID_KEY,term_to_binary(Zxid)}],
+    Para=[{put,Key,Value},{put,?LAST_ZXID_KEY,term_to_binary(Zxid)}],
     Reply=eleveldb:write(Db,Para,[]),
     {ok,Reply,State}
 .
@@ -132,9 +132,9 @@ handle_commit({put,Key,Value},Zxid, State=#state{leveldb=Db},_ZabServerInfo) ->
 %%--------------------------------------------------------------------
 
 handle_call({get,Key}, _From, State=#state{leveldb=Db},_) ->
-    case eleveldb:get(Db,list_to_binary(Key),[]) of
+    case eleveldb:get(Db,Key,[]) of
 	{ok,Value}->
-	    {reply,{ok,erlang:binary_to_term(Value)}, State};
+	    {reply,{ok,Value}, State};
 	not_found->
 	    {reply,not_found, State};
 	{error,Reason} ->
