@@ -186,9 +186,14 @@ process_req([<<"DEL">>,K],_Socket) ->
 		<<"-error",?NL>>
 	end,
     Rep;
+process_req([<<"SELECT",_Rest/binary>>],_Socket) ->
+    <<"+OK",?NL>>;
 process_req(<<"SELECT",_Rest/binary>>,_Socket) ->
     <<"+OK",?NL>>;
+process_req([<<"PING">>],_Socket) ->
+    <<"+PONG",?NL>>;
 process_req(_A,_Socket) ->
+   % error_logger:info_msg("~p~n",[A]),
     <<"-error_not_support",?NL>>.
 
 	

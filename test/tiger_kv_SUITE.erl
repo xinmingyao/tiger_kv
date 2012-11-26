@@ -77,9 +77,9 @@ start_redis_slave2(Port)->
     start_lager(),
     application:start(ranch),
     zabe_proposal_leveldb_backend:start_link(get_zab(),[]),
-    ranch:start_listener(redis,100,ranch_tcp,[{port,Port}],edis_client,[]),
+    ranch:start_listener(redis,100,ranch_tcp,[{port,Port}],redis_frontend,[]),
     C1=code:lib_dir(eredis_engine,'c_src/redis/redis.conf'),
-    edis_db:start_link(?NODES,Opt,C1,get_db()).
+    redis_backend:start_link(?NODES,Opt,C1,get_db()).
 
 get_code_path()->
     Ps=code:get_path(),
@@ -111,12 +111,17 @@ all()->
 redis_crud(_C)->
     stop(),
     start_redis_slave('n1',6379),
+    timer:sleep(1500),
+    {ok,C}=eredis:start_link(),
+    {error,<<"not_ready">>}=eredis:q(C,["SET","foo","BAR"]),
     start_redis_slave('n2',6380),
     start_redis_slave('n3',6381),
     timer:sleep(2000),
-    {ok,C}=eredis:start_link(),
     {ok,<<"OK">>}=eredis:q(C,["SET","foo","BAR"]),
     {ok,<<"BAR">>}=eredis:q(C,["GET","foo"]),
+    {ok,<<"OK">>}=eredis:q(C,["DEL","foo"]),
+    {ok,undefined}=eredis:q(C,["GET","foo"]),
+    {ok,<<"PONG">>}=eredis:q(C,["PING"]),
    % stop(),
     ok.
 mem_crud(_Config)->
