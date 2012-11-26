@@ -123,11 +123,11 @@ init([]) ->
 	true->
 	    RedisPort=?PROPLIST_KEY_VALUE2(port,RedisValues,6379),
 	    Ip1= ?PROPLIST_KEY_VALUE(ip,RedisValues,{127,0,0,1}),
-	    {ok,_}=ranch:start_listener(redis,100,ranch_tcp,[{port,RedisPort},{ip,Ip1}, {nodelay, true}],edis_client,[]),
+	    {ok,_}=ranch:start_listener(redis,100,ranch_tcp,[{port,RedisPort},{ip,Ip1}, {nodelay, true}],redis_frontend,[]),
 	    erlcron:cron(proplists:get_value(snapshot,RedisValues)),
 	    erlcron:cron(proplists:get_value(gc,RedisValues)),
 	    R2={redis_back_end,
-		    {edis_db, start_link,
+		    {redis_backend, start_link,
 		     [MasterNodes,[{bucket,?REDIS_BUCKET},{is_memory_db,true}],proplists:get_value(conf,RedisValues),
 						   proplists:get_value(db_dir,RedisValues)]},
 		permanent, 5000, worker, [redis_back_end]},
