@@ -24,27 +24,19 @@ stop()->
     slave:stop('n1@localhost'),
     slave:stop('n2@localhost'),
     slave:stop('n3@localhost').
-start(Opts)->
-    
+
+start_lager()->
     Zab=get_zab(),
     Db=get_db(),
 
     os:cmd("rm -f "++ Zab),
     os:cmd("rm -f "++ Db),
-    
-    start_lager(),
-    timer:sleep(2),
-    zabe_proposal_leveldb_backend:start_link(Zab,[]),
-    Op1=[{proposal_dir,Zab}|Opts],
-    zabe_learn_leveldb:start_link(?NODES,Op1,Db).
-
-
-start_lager()->
+    os:cmd("mkdir "++ Zab),
     Log=get_log(),
     os:cmd("rm -f "++ Log),
     application:load(lager),
     application:set_env(lager, handlers, [{lager_console_backend,error}
-					  ,{lager_file_backend,[{Log,debug,10485760,"$D0",5}]}
+					  ,{lager_file_backend,[{Log,notice,10485760,"$D0",5}]}
 					 ]),
     application:set_env(lager, error_logger_redirect, false),
  
@@ -63,12 +55,12 @@ start_mem_slave2(Port)->
     start_lager(),
     application:start(ranch),
     zabe_proposal_leveldb_backend:start_link(get_zab(),[]),
-    ranch:start_listener(memcached,100,ranch_tcp,[{port,Port}],memcached_frontend,[]),
+    ranch:start_listener(memcached,100,ranch_tcp,[{port,Port}],mem_frontend,[]),
     memcached_backend:start_link(?NODES,Opt,get_db()).
 
 
 start_redis_slave(Name,Port)->
-    slave:start(?HOST,Name,get_code_path()),
+    {ok,_}=slave:start(?HOST,Name,get_code_path()),
     N1=list_to_atom(atom_to_list(Name)++"@"++atom_to_list(?HOST)),
     rpc:cast(N1,?MODULE,start_redis_slave2,[Port]).
 
@@ -76,7 +68,7 @@ start_redis_slave2(Port)->
     Opt=[{bucket,2}],
     start_lager(),
     application:start(ranch),
-    zabe_proposal_leveldb_backend:start_link(get_zab(),[]),
+    {ok,_}=zabe_proposal_leveldb_backend:start_link(get_zab(),[]),
     ranch:start_listener(redis,100,ranch_tcp,[{port,Port}],redis_frontend,[]),
     C1=code:lib_dir(eredis_engine,'c_src/redis/redis.conf'),
     redis_backend:start_link(?NODES,Opt,C1,get_db()).
@@ -127,10 +119,10 @@ redis_crud(_C)->
 mem_crud(_Config)->
     stop(),
     start_mem_slave('n1',11211),
-    timer:sleep(1000),
+    timer:sleep(3000),
     merle:connect(),
-    "SERVER_ERROR not_ready"=merle:set("tt","aa"),
-    "SERVER_ERROR not_ready"=merle:delete("tt"),
+    "NOT_READY"=merle:set("tt","aa"),
+    "NOT_READY"=merle:delete("tt"),
    % "SERVER_ERROR not_ready"=merle:delete("tt"),
     start_mem_slave('n2',11212),
     start_mem_slave('n3',11213),

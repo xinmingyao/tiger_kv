@@ -92,7 +92,7 @@ init([]) ->
 	true->
 	    MemPort= ?PROPLIST_KEY_VALUE2(port,MemValues,11211),
 	    Ip= ?PROPLIST_KEY_VALUE(ip,MemValues,{127,0,0,1}),
-	    {ok,_}=ranch:start_listener(memcached,100,ranch_tcp,[{port,MemPort},{ip,Ip}],memcached_frontend,[]),
+	    {ok,_}=ranch:start_listener(memcached,100,ranch_tcp,[{port,MemPort},{ip,Ip}],mem_frontend,[]),
 	    DbDir=proplists:get_value(db_dir,MemValues),
 	    Mopts=case lists:keyfind(gc_by_zab_log_count,1,MemValues) of
 		      false->

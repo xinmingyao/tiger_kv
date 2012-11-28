@@ -58,3 +58,12 @@
 -define(NL, "\r\n").
 
 -define(SOCKET_OPTS, [binary, {active, once}, {packet, raw}, {reuseaddr, true}]).
+
+%%Internal for mem parser, init->first_continue->storage_continue->first_continue
+-type mem_parser_state() :: init | first_continue | storage_continue.
+-record(memstate, {
+          state = undefined :: mem_parser_state() | undefined,
+          continuation_data :: continuation_data() | undefined,
+	  storage_data
+}).
+
