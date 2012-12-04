@@ -1,68 +1,41 @@
 %%%-------------------------------------------------------------------
-%%% @author  <>
+%%% @author  <yaoxinming@gmail.com>
 %%% @copyright (C) 2012, 
 %%% @doc
 %%%
 %%% @end
-%%% Created : 19 Jun 2012 by  <>
+%%% Created :  4 Dec 2012 by  <>
 %%%-------------------------------------------------------------------
--module(memcached_backend).
--behaviour(gen_zab_server). 
+-module(tiger_global).
+
+-behaviour(gen_server).
 %% API
--export([start_link/3]).
--compile([{parse_transform, lager_transform}]).
+-export([start_link/0]).
+
 %% gen_server callbacks
--export([init/1, handle_call/4, handle_cast/3, handle_info/3,
-	 terminate/3, code_change/4]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2,
+	 terminate/2, code_change/3]).
 
 -define(SERVER, ?MODULE). 
--include("tiger_kv_main.hrl").
--record(state, {leveldb}).
 
--export([put/2,get/1,delete/1]).
+-record(state, {}).
+-export([put/2,get/1]).
 
--export([handle_commit/4]).
-
--define(LAST_ZXID_KEY,<<"cen_last_zxid_key">>).
 
 %%%===================================================================
 %%% API
 %%%===================================================================
-
-put(Key,Value)->
-    case catch  gen_zab_server:proposal_call(?SERVER,{put,Key,Value}) of
-        {error,not_ready} ->
-            {error,"not_ready"};
-	{ok,Res} ->
-            Res;
-        {'EXIT',Reason} ->
-            {error,Reason};
-	Res->
-	    Res
-    end
-   %
-    .
-delete(Key)->
-    case catch  gen_zab_server:proposal_call(?SERVER,{delete,Key}) of
-        {error,not_ready} ->
-            {error,"not_ready"};
-	{ok,Res} ->
-            Res;
-        {'EXIT',Reason} ->
-            {error,Reason};
-	Res->
-	    Res
-    end
-    .
-get(Key)->
-    case catch  gen_zab_server:call(?SERVER,{get,Key}) of
-        {'EXIT',Reason} ->
-            {error,Reason};
-	Res->
-	    Res
-    end
-    .
-
+-spec put(K::any(),V::any())->ok.
+put(K,V)->
+    ets:insert_new(?MODULE,{K,V}) .
+-spec get(K::any())->{ok,V::any()}.
+get(K)->
+    case ets:lookup(?MODULE,K) of
+	[]->
+	    not_found;
+	[{K,V}|_] ->
+	    {ok,V}
+    end.
 %%--------------------------------------------------------------------
 %% @doc
 %% Starts the server
@@ -70,8 +43,8 @@ get(Key)->
 %% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
-start_link(Nodes,Opts,DbDir) ->
-    gen_zab_server:start_link(?SERVER,Nodes,Opts, ?MODULE, [DbDir], []).
+start_link() ->
+    gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -88,35 +61,10 @@ start_link(Nodes,Opts,DbDir) ->
 %%                     {stop, Reason}
 %% @end
 %%--------------------------------------------------------------------
-init([WorkDir]) ->    
-    case eleveldb:open(WorkDir, [{create_if_missing, true},{max_open_files,50}]) of
-        {ok, Ref} ->
-	    true=tiger_global:put(?MODULE,{Ref}),
-	    lager:info("open db on:~p ok",[WorkDir]),
-	    case eleveldb:get(Ref,?LAST_ZXID_KEY,[]) of
-		{ok,Value}->
-		    {ok,#state{leveldb=Ref},binary_to_term(Value)};
-		not_found->
-		    {ok,#state{leveldb=Ref},{0,0}};
-		{error,Reason}->
-		    lager:info("get last zxid error ~p",[Reason]),
-		    {error,Reason}
-	    end
-            ;
-        {error, Reason} ->
-	    lager:info("open db error ~p",[Reason]),
-            {error, Reason}
-    end.
+init([]) ->
+    ets:new(?MODULE,[{keypos,1},named_table,public,{read_concurrency,true}]),
+    {ok, #state{}}.
 
-handle_commit({delete,Key},Zxid, State=#state{leveldb=Db},_ZabServerInfo) ->   
-    Para=[{delete, Key},{put,?LAST_ZXID_KEY,term_to_binary(Zxid)}],
-    Reply=eleveldb:write(Db,Para,[]),
-    {ok,Reply,State};
-handle_commit({put,Key,Value},Zxid, State=#state{leveldb=Db},_ZabServerInfo) ->   
-    Para=[{put,Key,Value},{put,?LAST_ZXID_KEY,term_to_binary(Zxid)}],
-    Reply=eleveldb:write(Db,Para,[]),
-    {ok,Reply,State}
-.
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
@@ -131,18 +79,9 @@ handle_commit({put,Key,Value},Zxid, State=#state{leveldb=Db},_ZabServerInfo) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-
-handle_call({get,Key}, _From, State=#state{leveldb=Db},_) ->
-    case eleveldb:get(Db,Key,[]) of
-	{ok,Value}->
-	    {reply,{ok,Value}, State};
-	not_found->
-	    {reply,not_found, State};
-	{error,Reason} ->
-	    {reply, {error,Reason}, State}
-    end;
-handle_call(_, _From, State,_) ->
-    {reply,ok,State}.
+handle_call(_Request, _From, State) ->
+    Reply = ok,
+    {reply, Reply, State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -154,7 +93,7 @@ handle_call(_, _From, State,_) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_cast(_Msg, State,_) ->
+handle_cast(_Msg, State) ->
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -167,7 +106,7 @@ handle_cast(_Msg, State,_) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_info(_Info, State,_ZabServerInfo) ->
+handle_info(_Info, State) ->
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -181,7 +120,7 @@ handle_info(_Info, State,_ZabServerInfo) ->
 %% @spec terminate(Reason, State) -> void()
 %% @end
 %%--------------------------------------------------------------------
-terminate(_Reason, _State,_ZabServerInfo) ->
+terminate(_Reason, _State) ->
     ok.
 
 %%--------------------------------------------------------------------
@@ -192,9 +131,28 @@ terminate(_Reason, _State,_ZabServerInfo) ->
 %% @spec code_change(OldVsn, State, Extra) -> {ok, NewState}
 %% @end
 %%--------------------------------------------------------------------
-code_change(_OldVsn, State, _Extra,_ZabServerInfo) ->
+code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+
+    
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+put_test()->
+    K=1,
+    V=2,
+    erlang:process_flag(trap_exit,true),
+    {ok,P}=tiger_global:start_link(),
+    true=tiger_global:put(K,V),
+    {ok,V2}=tiger_global:get(K),
+    ?assertEqual(V,V2), 
+    ?assertEqual(not_found,tiger_global:get(tt)),
+    catch erlang:exit(P,kill),
+    ok.
+-endif.
+
+

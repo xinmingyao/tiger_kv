@@ -18,7 +18,7 @@
 -compile([{parse_transform, lager_transform}]).
 -define(SERVER, ?MODULE). 
 
--record(state, {parser_state,socket}).
+-record(state, {parser_state,socket,nif_ref}).
 -include("tiger_kv_main.hrl").
 -include("memcached_pb.hrl").
 %%%===================================================================
@@ -59,7 +59,8 @@ init([Socket,_,_]) ->
 			       {reuseaddr, true},
 			       {nodelay, true},
 			       {keepalive, true}]),
-    {ok, #state{socket=Socket,parser_state=#memstate{state=init}}}.
+    {ok,{Ref}}=tiger_global:get(memcached_backend),
+    {ok, #state{socket=Socket,parser_state=#memstate{state=init},nif_ref=Ref}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -112,7 +113,7 @@ handle_info({tcp, Socket, Bin}, #state{socket = Socket,parser_state=ParserState
 		   gen_tcp:send(Socket,Rep),
 		   StateData#state{parser_state=NewParserState};
 	       {ok,Data,NewParserState}->
-		   Rep=process_req(Data),
+		   Rep=process_req2(Data,StateData),
 		   lager:debug("~p~n",[Rep]),
 		   send_tcp(Socket,Rep),
 		   StateData#state{parser_state=NewParserState};
@@ -189,14 +190,14 @@ do_storage_cmd(<<"set">>,T,Second)->
 	end,
     Rep.
 
-process_req(Data) ->
+process_req2(Data,State) ->
     T=binary:split(Data,<<" ">>,[global]),
     [Cmd|Tail]=T,
-    do_retrieval(Cmd,Tail).
+    do_retrieval(Cmd,Tail,State).
 -define(WS," ").
-do_retrieval(<<"get">>,Data)->
+do_retrieval(<<"get">>,Data,State)->
     L=lists:foldl(fun(Key,Acc)->
-		       case memcached_backend:get(Key) of
+		       case eleveldb:get(State#state.nif_ref,Key,[]) of
 			   {ok,Value}->
 			       <<T:32,Size:32,Second:Size/binary,Flags/binary>> =Value,
 			       S2=list_to_binary(integer_to_list(Size)),
@@ -226,7 +227,7 @@ do_retrieval(<<"get">>,Data)->
     lists:reverse([<<"END",?NL>>|L])
 %	,L
 	;
-do_retrieval(<<"delete">>,Data)->
+do_retrieval(<<"delete">>,Data,_State)->
     [Key|_]=Data,
     case memcached_backend:delete(Key) of
 	ok->

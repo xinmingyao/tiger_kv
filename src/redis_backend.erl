@@ -133,6 +133,7 @@ init([Conf,DbDir]) ->
 	     lager:debug("open rdb: ~p",[LastFile]),
 	     eredis_engine:open(LastFile,Conf,1)
      end,
+    true=tiger_global:put(?MODULE,{Db}),
     {ok,#state{db=Db,redis_db_dir=DbDir},Zxid}.
 
 handle_commit({delete,Key},_Zxid, State=#state{db=Db},_ZabServerInfo) ->   

@@ -113,9 +113,9 @@ init([]) ->
     end,
 		 
     Job1={{daily, {11, 10, pm}},
-	 fun() -> edis_db:send_snapshot() end},
+	 fun() -> redis_backend:send_snapshot() end},
     Job2={{daily, {11, 50, pm}},
-	 fun() -> edis_db:send_gc() end},
+	 fun() -> redis_backend:send_gc() end},
     R=[{enable,true},{port,6379},{ip,{127,0,0,1}},{snapshot,Job1},{gc,Job2},{conf,"/tmp/redis.conf"},{db_dir,"/tmp/redis"}],
     
     {ok,RedisValues}=tiger_kv_util:get_env(redis,R),
@@ -137,8 +137,12 @@ init([]) ->
 	    do_nothing
     end,
         
+    Tg={tiger_global,
+		    {tiger_global, start_link,
+		     []},
+		permanent, 5000, worker, [tiger_global]},
     % Build the process list...
-    Processes = lists:flatten(get(?BACKEND)),
+    Processes = lists:flatten([Tg|get(?BACKEND)]),
    % Processes = lists:flatten([
    %			       RedisBackEnd,
    %			       MemBackEnd

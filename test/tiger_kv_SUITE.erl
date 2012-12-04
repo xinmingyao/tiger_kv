@@ -42,7 +42,9 @@ start_lager()->
  
     application:start(compiler),
     application:start(syntax_tools),
-    application:start(lager).
+    application:start(lager),
+    {ok,_}=tiger_global:start_link(),
+    ok.
 
 
 start_mem_slave(Name,Port)->
@@ -71,7 +73,7 @@ start_redis_slave2(Port)->
     {ok,_}=zabe_proposal_leveldb_backend:start_link(get_zab(),[]),
     ranch:start_listener(redis,100,ranch_tcp,[{port,Port}],redis_frontend,[]),
     C1=code:lib_dir(eredis_engine,'c_src/redis/redis.conf'),
-    redis_backend:start_link(?NODES,Opt,C1,get_db()).
+    {ok,_}=redis_backend:start_link(?NODES,Opt,C1,get_db()).
 
 get_code_path()->
     Ps=code:get_path(),
@@ -114,7 +116,7 @@ redis_crud(_C)->
     {ok,<<"OK">>}=eredis:q(C,["DEL","foo"]),
     {ok,undefined}=eredis:q(C,["GET","foo"]),
     {ok,<<"PONG">>}=eredis:q(C,["PING"]),
-   % stop(),
+    stop(),
     ok.
 mem_crud(_Config)->
     stop(),

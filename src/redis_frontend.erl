@@ -19,7 +19,7 @@
 
 -define(SERVER, ?MODULE). 
 
--record(state, {parser_state,socket}).
+-record(state, {parser_state,socket,nif_ref,db_index=0}).
 -include("tiger_kv_main.hrl").
 
 %%%===================================================================
@@ -60,7 +60,8 @@ init([Socket,_,_]) ->
 			       {reuseaddr, true},
 			       {nodelay, true},
 			       {keepalive, true}]),
-    {ok, #state{socket=Socket,parser_state=#pstate{}}}.
+    {ok,{Ref1}}=tiger_global:get(redis_backend),
+    {ok, #state{socket=Socket,parser_state=#pstate{},nif_ref=Ref1}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -107,12 +108,12 @@ handle_info({tcp, Socket, Bin}, #state{socket = Socket,parser_state=ParserState
 				      } = StateData) ->
     Result=case redis_parser:parse(ParserState,Bin) of
 	       {ok,Req,NewParserState}->
-		   Rep=process_req(Req,Socket),
+		   Rep=process_req(Req,StateData),
 		   gen_tcp:send(Socket,Rep),
 		   ok = inet:setopts(Socket, [{active, once}]),
 		   StateData#state{parser_state=NewParserState};
 	       {ok,Req,_Rest,NewParserState}->
-		   Rep=process_req(Req,Socket),
+		   Rep=process_req(Req,StateData),
 		   gen_tcp:send(Socket,Rep),
 		   ok = inet:setopts(Socket, [{active, once}]),
 		   StateData#state{parser_state=NewParserState};
@@ -165,8 +166,9 @@ process_req([<<"SET">>,K,V],_Socket)->
 		<<"-error",?NL>>
 	end,
     Rep;
-process_req([<<"GET">>,K],_Socket) ->
-    Rep=case redis_backend:get(K) of
+process_req([<<"GET">>,K],State) ->
+    
+    Rep=case eredis_engine:get(State#state.nif_ref,K) of
 	    {ok,Value}->
 		Size=erlang:size(Value),
 		S=list_to_binary(erlang:integer_to_list(Size)),
