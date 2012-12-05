@@ -1,6 +1,0 @@
-package mem_value;
-message onecached{
-	required uint32 flags=1 [default=0];	
-	required int32  exptime=2 [default=0];
-	required string data=3 [default=""];
-}

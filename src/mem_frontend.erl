@@ -20,7 +20,7 @@
 
 -record(state, {parser_state,socket,nif_ref}).
 -include("tiger_kv_main.hrl").
--include("memcached_pb.hrl").
+
 %%%===================================================================
 %%% API
 %%%===================================================================
@@ -60,7 +60,7 @@ init([Socket,_,_]) ->
 			       {nodelay, true},
 			       {keepalive, true}]),
     {ok,{Ref}}=tiger_global:get(memcached_backend),
-    {ok, #state{socket=Socket,parser_state=#memstate{state=init},nif_ref=Ref}}.
+    {ok, #state{socket=Socket,parser_state=#memstate{state=init},nif_ref=Ref},?CLIENT_SOCKET_TIMEOUT}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -78,7 +78,7 @@ init([Socket,_,_]) ->
 %%--------------------------------------------------------------------
 handle_call(_Request, _From, State) ->
     Reply = ok,
-    {reply, Reply, State}.
+    {reply, Reply, State,?CLIENT_SOCKET_TIMEOUT}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -91,7 +91,7 @@ handle_call(_Request, _From, State) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_cast(_Msg, State) ->
-    {noreply, State}.
+    {noreply, State,?CLIENT_SOCKET_TIMEOUT}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -121,12 +121,12 @@ handle_info({tcp, Socket, Bin}, #state{socket = Socket,parser_state=ParserState
 		   StateData#state{parser_state=NewParserState}
 	   end,
     ok = inet:setopts(Socket, [{active, once}]),
-    {noreply,Result};
+    {noreply,Result,?CLIENT_SOCKET_TIMEOUT};
 handle_info({tcp_closed, Socket},  #state{socket = Socket
                                                      } = StateData) ->
   {stop, normal, StateData};
 handle_info(_Info, State) ->
-    {noreply, State}.
+    {noreply, State,?CLIENT_SOCKET_TIMEOUT}.
 
 send_tcp(Socket,Data) when is_list(Data) ->
     lists:map(fun(A)->
@@ -144,7 +144,8 @@ send_tcp(Socket,Data) ->
 %% @spec terminate(Reason, State) -> void()
 %% @end
 %%--------------------------------------------------------------------
-terminate(_Reason, _State) ->
+terminate(_Reason, State) ->
+    catch gen_tcp:close(State#state.socket),
     ok.
 
 %%--------------------------------------------------------------------
@@ -180,11 +181,13 @@ do_storage_cmd(<<"set">>,T,Second)->
 	      <<T2:32,Size:32,Second/binary,Flags/binary>>
 
     end,
-    Rep=case memcached_backend:put(K,V) of
+    Rep=case catch memcached_backend:put(K,V) of
 	    ok->
 		<<"STORED",?NL>>;
 	    {error,"not_ready"}->
 		<<"NOT_READY",?NL>>;
+	    timeout->
+		<<"TIMEOUT">>;
 	    _ ->
 		<<"SERVER_ERROR",?NL>>
 	end,
@@ -229,11 +232,13 @@ do_retrieval(<<"get">>,Data,State)->
 	;
 do_retrieval(<<"delete">>,Data,_State)->
     [Key|_]=Data,
-    case memcached_backend:delete(Key) of
+    case catch memcached_backend:delete(Key) of
 	ok->
 	    <<"DELETED",?NL>>;
 	{error,"not_ready"} ->
 	    <<"NOT_READY",?NL>>;
+	timeout->
+		<<"TIMEOUT">>;
 	_ ->
 	    <<"SERVER_ERROR",?NL>>
     end.

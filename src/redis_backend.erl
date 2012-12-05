@@ -28,7 +28,7 @@
 	  last_snap_filename ::string(),
 	  last_save           :: float()}).
 -opaque state() :: #state{}.
--export([put/2,get/1,delete/1]).
+-export([put/3,get/2,delete/2]).
 -export([do_snapshot/2,send_snapshot/0,send_gc/0]).
 
 
@@ -41,8 +41,8 @@
 %%% API
 %%%===================================================================
 
-put(Key,Value)->
-    case catch  gen_zab_server:proposal_call(?SERVER,{put,Key,Value}) of
+put(Key,Value,Index)->
+    case catch  gen_zab_server:proposal_call(?SERVER,{put,Key,Value,Index}) of
         {error,not_ready} ->
             {error,not_ready};
 	{ok,Res} ->
@@ -54,8 +54,8 @@ put(Key,Value)->
     end
    %
     .
-delete(Key)->
-    case catch  gen_zab_server:proposal_call(?SERVER,{delete,Key}) of
+delete(Key,Index)->
+    case catch  gen_zab_server:proposal_call(?SERVER,{delete,Key,Index}) of
         {error,not_ready} ->
             {error,"not_ready"};
 	{ok,Res} ->
@@ -66,8 +66,8 @@ delete(Key)->
 	    Res
     end
     .
-get(Key)->
-    case catch  gen_zab_server:call(?SERVER,{get,Key}) of
+get(Key,Index)->
+    case catch  gen_zab_server:call(?SERVER,{get,Key,Index}) of
         {'EXIT',Reason} ->
             {error,Reason};
 	Res->
@@ -130,18 +130,19 @@ init([Conf,DbDir]) ->
      case LastFile of
 	 0->eredis_engine:open("nouse",Conf,0);
 	 _->
-	     lager:debug("open rdb: ~p",[LastFile]),
+	     lager:notice("open rdb: ~p",[LastFile]),
 	     eredis_engine:open(LastFile,Conf,1)
      end,
+
     true=tiger_global:put(?MODULE,{Db}),
     {ok,#state{db=Db,redis_db_dir=DbDir},Zxid}.
 
-handle_commit({delete,Key},_Zxid, State=#state{db=Db},_ZabServerInfo) ->   
+handle_commit({delete,Key,Index},_Zxid, State=#state{db=Db},_ZabServerInfo) ->   
   
-    Reply=eredis_engine:delete(Db,Key),
+    Reply=eredis_engine:delete(Db,Key,Index),
     {ok,Reply,State};
-handle_commit({put,Key,Value},_Zxid, State=#state{db=Db},_ZabServerInfo) ->   
-    Reply=eredis_engine:put(Db,Key,Value),
+handle_commit({put,Key,Value,Index},_Zxid, State=#state{db=Db},_ZabServerInfo) ->   
+    Reply=eredis_engine:put(Db,Key,Value,Index),
     {ok,Reply,State}
 .
 %%--------------------------------------------------------------------
@@ -159,8 +160,8 @@ handle_commit({put,Key,Value},_Zxid, State=#state{db=Db},_ZabServerInfo) ->
 %% @end
 %%--------------------------------------------------------------------
 
-handle_call({get,Key}, _From, State=#state{db=Db},_) ->
-    case eredis_engine:get(Db,Key) of
+handle_call({get,Key,Index}, _From, State=#state{db=Db},_) ->
+    case eredis_engine:get(Db,Key,Index) of
 	{ok,Value}->
 	    {reply,{ok,Value}, State};
 	not_found->

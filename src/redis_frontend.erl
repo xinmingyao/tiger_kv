@@ -16,7 +16,7 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	 terminate/2, code_change/3]).
-
+-compile([{parse_transform, lager_transform}]).
 -define(SERVER, ?MODULE). 
 
 -record(state, {parser_state,socket,nif_ref,db_index=0}).
@@ -61,7 +61,8 @@ init([Socket,_,_]) ->
 			       {nodelay, true},
 			       {keepalive, true}]),
     {ok,{Ref1}}=tiger_global:get(redis_backend),
-    {ok, #state{socket=Socket,parser_state=#pstate{},nif_ref=Ref1}}.
+    put(index,0),
+    {ok, #state{socket=Socket,parser_state=#pstate{},nif_ref=Ref1},?CLIENT_SOCKET_TIMEOUT}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -79,7 +80,7 @@ init([Socket,_,_]) ->
 %%--------------------------------------------------------------------
 handle_call(_Request, _From, State) ->
     Reply = ok,
-    {reply, Reply, State}.
+    {reply, Reply, State,?CLIENT_SOCKET_TIMEOUT}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -92,7 +93,7 @@ handle_call(_Request, _From, State) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_cast(_Msg, State) ->
-    {noreply, State}.
+    {noreply, State,?CLIENT_SOCKET_TIMEOUT}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -120,13 +121,13 @@ handle_info({tcp, Socket, Bin}, #state{socket = Socket,parser_state=ParserState
 	       {continue,NewParserState}->
 		   StateData#state{parser_state=NewParserState}
 	   end,
-    {noreply,Result};
+    {noreply,Result,?CLIENT_SOCKET_TIMEOUT};
 handle_info({tcp_closed, Socket},  #state{socket = Socket
                                                      } = StateData) ->
 
   {stop, normal, StateData};
 handle_info(_Info, State) ->
-    {noreply, State}.
+    {noreply, State,?CLIENT_SOCKET_TIMEOUT}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -139,7 +140,8 @@ handle_info(_Info, State) ->
 %% @spec terminate(Reason, State) -> void()
 %% @end
 %%--------------------------------------------------------------------
-terminate(_Reason, _State) ->
+terminate(_Reason, State) ->
+    catch gen_tcp:close(State#state.socket),
     ok.
 
 %%--------------------------------------------------------------------
@@ -157,9 +159,11 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 process_req([<<"SET">>,K,V],_Socket)->
-    Rep=case redis_backend:put(K,V) of
+    Rep=case catch redis_backend:put(K,V,get(index)) of
 	    ok->
 		<<"+OK",?NL>>;
+	    timeout->
+		<<"-timeout",?NL>>;
 	    {error,not_ready}->
 		<<"-not_ready",?NL>>;
 	    _ ->
@@ -167,8 +171,8 @@ process_req([<<"SET">>,K,V],_Socket)->
 	end,
     Rep;
 process_req([<<"GET">>,K],State) ->
-    
-    Rep=case eredis_engine:get(State#state.nif_ref,K) of
+    Index=get(index),
+    Rep=case  eredis_engine:get(State#state.nif_ref,K,Index) of
 	    {ok,Value}->
 		Size=erlang:size(Value),
 		S=list_to_binary(erlang:integer_to_list(Size)),
@@ -181,21 +185,34 @@ process_req([<<"GET">>,K],State) ->
 	end,
     Rep;
 process_req([<<"DEL">>,K],_Socket) ->
-    Rep=case redis_backend:delete(K) of
+    Rep=case catch redis_backend:delete(K,get(index)) of
 	    ok->
-		<<"+OK",?NL>>;	    
+		<<"+OK",?NL>>;
+	    timeout->
+		<<"-timeout",?NL>>;
 	    _ ->
 		<<"-error",?NL>>
 	end,
     Rep;
-process_req([<<"SELECT",_Rest/binary>>],_Socket) ->
-    <<"+OK",?NL>>;
-process_req(<<"SELECT",_Rest/binary>>,_Socket) ->
-    <<"+OK",?NL>>;
+process_req([<<"SELECT",Rest/binary>>],_Socket) ->
+    Index=list_to_integer(string:strip(binary_to_list(Rest))),
+    if Index>16 ->
+	    <<"-error db must less 16">>;
+       true->
+	    put(index,Index),
+	    <<"+OK",?NL>>
+    end;
+process_req(<<"SELECT",Rest/binary>>,_Socket) ->
+    Index=list_to_integer(string:strip(binary_to_list(Rest))),
+    if Index>16 ->
+	    <<"-error db must less 16">>;
+       true->
+	    put(index,Index),
+	    <<"+OK",?NL>>
+    end;
 process_req([<<"PING">>],_Socket) ->
     <<"+PONG",?NL>>;
 process_req(_A,_Socket) ->
-   % error_logger:info_msg("~p~n",[A]),
     <<"-error_not_support",?NL>>.
 
 	
