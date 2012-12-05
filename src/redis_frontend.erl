@@ -214,7 +214,7 @@ process_req(<<"SELECT",Rest/binary>>,_Socket) ->
 	    put(index,Index),
 	    <<"+OK",?NL>>
     end;
-process_req([<<"PING">>],_Socket) ->
+process_req(<<"PING">>,_Socket) ->
     <<"+PONG",?NL>>;
 process_req(A,_Socket) ->
     lager:error("~p",[A]),
