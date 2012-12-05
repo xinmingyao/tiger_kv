@@ -54,12 +54,13 @@ start_link (_ListenPid,Socket,Transport,TransOps) ->
 %%--------------------------------------------------------------------
 init([Socket,_,_]) ->
     inet:setopts(Socket,[binary,
-			       {packet, raw},
-			       {active, once},
-			       {reuseaddr, true},
-			       {nodelay, true},
-			       {keepalive, true}]),
+			 {packet, raw},
+			 {active, once},
+			 {reuseaddr, true},
+			 {nodelay, true},
+			 {keepalive, true}]),
     {ok,{Ref}}=tiger_global:get(memcached_backend),
+    
     {ok, #state{socket=Socket,parser_state=#memstate{state=init},nif_ref=Ref},?CLIENT_SOCKET_TIMEOUT}.
 
 %%--------------------------------------------------------------------
@@ -184,11 +185,12 @@ do_storage_cmd(<<"set">>,T,Second)->
     Rep=case catch memcached_backend:put(K,V) of
 	    ok->
 		<<"STORED",?NL>>;
-	    {error,"not_ready"}->
+	    {error,not_ready}->
 		<<"NOT_READY",?NL>>;
 	    timeout->
 		<<"TIMEOUT">>;
-	    _ ->
+	    A ->
+		lager:error("~p",[A]),
 		<<"SERVER_ERROR",?NL>>
 	end,
     Rep.
@@ -200,7 +202,7 @@ process_req2(Data,State) ->
 -define(WS," ").
 do_retrieval(<<"get">>,Data,State)->
     L=lists:foldl(fun(Key,Acc)->
-		       case eleveldb:get(State#state.nif_ref,Key,[]) of
+		       case memcached_backend:get(Key,State#state.nif_ref) of
 			   {ok,Value}->
 			       <<T:32,Size:32,Second:Size/binary,Flags/binary>> =Value,
 			       S2=list_to_binary(integer_to_list(Size)),
@@ -235,11 +237,12 @@ do_retrieval(<<"delete">>,Data,_State)->
     case catch memcached_backend:delete(Key) of
 	ok->
 	    <<"DELETED",?NL>>;
-	{error,"not_ready"} ->
+	{error,not_ready} ->
 	    <<"NOT_READY",?NL>>;
 	timeout->
 		<<"TIMEOUT">>;
-	_ ->
+	A ->
+	    lager:error("~p",[A]),
 	    <<"SERVER_ERROR",?NL>>
     end.
 		

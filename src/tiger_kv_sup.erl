@@ -1,24 +1,4 @@
 %% -------------------------------------------------------------------
-%%
-%% riak_core: Core Riak Application
-%%
-%% Copyright (c) 2007-2010 Basho Technologies, Inc.  All Rights Reserved.
-%%
-%% This file is provided to you under the Apache License,
-%% Version 2.0 (the "License"); you may not use this file
-%% except in compliance with the License.  You may obtain
-%% a copy of the License at
-%%
-%%   http://www.apache.org/licenses/LICENSE-2.0
-%%
-%% Unless required by applicable law or agreed to in writing,
-%% software distributed under the License is distributed on an
-%% "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-%% KIND, either express or implied.  See the License for the
-%% specific language governing permissions and limitations
-%% under the License.
-%%
-%% -------------------------------------------------------------------
 -module(tiger_kv_sup).
 
 -behaviour(supervisor).
@@ -37,6 +17,8 @@
 
 -define(MEMCACHED_BUCKET,1).
 -define(REDIS_BUCKET,2).
+-include("tiger_kv_main.hrl").
+
 
 
 
@@ -92,7 +74,8 @@ init([]) ->
 	true->
 	    MemPort= ?PROPLIST_KEY_VALUE2(port,MemValues,11211),
 	    Ip= ?PROPLIST_KEY_VALUE(ip,MemValues,{127,0,0,1}),
-	    {ok,_}=ranch:start_listener(memcached,100,ranch_tcp,[{port,MemPort},{ip,Ip}],mem_frontend,[]),
+	    BackLog= ?PROPLIST_KEY_VALUE2(port,MemValues,?BACKLOG_NUM),
+	    {ok,_}=ranch:start_listener(memcached,100,ranch_tcp,[{port,MemPort},{ip,Ip},{backlog,BackLog},{nodelay, true}],mem_frontend,[]),
 	    DbDir=proplists:get_value(db_dir,MemValues),
 	    Mopts=case lists:keyfind(gc_by_zab_log_count,1,MemValues) of
 		      false->
@@ -123,7 +106,8 @@ init([]) ->
 	true->
 	    RedisPort=?PROPLIST_KEY_VALUE2(port,RedisValues,6379),
 	    Ip1= ?PROPLIST_KEY_VALUE(ip,RedisValues,{127,0,0,1}),
-	    {ok,_}=ranch:start_listener(redis,100,ranch_tcp,[{port,RedisPort},{ip,Ip1}, {nodelay, true}],redis_frontend,[]),
+	    BackLog2= ?PROPLIST_KEY_VALUE2(port,RedisValues,?BACKLOG_NUM),
+	    {ok,_}=ranch:start_listener(redis,100,ranch_tcp,[{port,RedisPort},{ip,Ip1},{backlog,BackLog2},{nodelay, true}],redis_frontend,[]),
 	    erlcron:cron(proplists:get_value(snapshot,RedisValues)),
 	    erlcron:cron(proplists:get_value(gc,RedisValues)),
 	    R2={redis_back_end,

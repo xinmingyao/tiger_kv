@@ -19,7 +19,7 @@
 -include("tiger_kv_main.hrl").
 -record(state, {leveldb}).
 
--export([put/2,get/1,delete/1]).
+-export([put/2,get/2,delete/1,get/1]).
 
 -export([handle_commit/4]).
 
@@ -28,39 +28,21 @@
 %%%===================================================================
 %%% API
 %%%===================================================================
-
+-spec put(Key::binary(),Value::binary())->ok|not_ready|timeout.
 put(Key,Value)->
-    case catch  gen_zab_server:proposal_call(?SERVER,{put,Key,Value}) of
-        {error,not_ready} ->
-            {error,"not_ready"};
-	{ok,Res} ->
-            Res;
-        {'EXIT',Reason} ->
-            {error,Reason};
-	Res->
-	    Res
-    end
-   %
+    gen_zab_server:proposal_call(?SERVER,{put,Key,Value})
     .
+
+-spec delete(Value::binary())->ok|not_ready|timeout.
 delete(Key)->
-    case catch  gen_zab_server:proposal_call(?SERVER,{delete,Key}) of
-        {error,not_ready} ->
-            {error,"not_ready"};
-	{ok,Res} ->
-            Res;
-        {'EXIT',Reason} ->
-            {error,Reason};
-	Res->
-	    Res
-    end
+    gen_zab_server:proposal_call(?SERVER,{delete,Key}) 
     .
+-spec get(Key::binary(),Ref::nif_ref)->{ok,Value::binary()}.
+get(Key,Ref)->
+    eleveldb:get(Ref,Key,[]).
+
 get(Key)->
-    case catch  gen_zab_server:call(?SERVER,{get,Key}) of
-        {'EXIT',Reason} ->
-            {error,Reason};
-	Res->
-	    Res
-    end
+    gen_zab_server:call(?SERVER,{get,Key})
     .
 
 %%--------------------------------------------------------------------
@@ -89,22 +71,26 @@ start_link(Nodes,Opts,DbDir) ->
 %% @end
 %%--------------------------------------------------------------------
 init([WorkDir]) ->    
-    case eleveldb:open(WorkDir, [{create_if_missing, true},{max_open_files,50}]) of
+    case eleveldb:open(WorkDir, [{create_if_missing, true},
+				 {max_open_files,tiger_kv_util:get_env(backend_max_open_files,50)},
+				 {write_buffer_size,tiger_kv_util:get_env(backend_write_buffer_size,50*1024*1024)},
+				 {cache_size,tiger_kv_util:get_env(backend_cache_size,50*1024*1024)}
+				]) of
         {ok, Ref} ->
 	    true=tiger_global:put(?MODULE,{Ref}),
-	    lager:info("open db on:~p ok",[WorkDir]),
+	    lager:notice("open db on:~p ok",[WorkDir]),
 	    case eleveldb:get(Ref,?LAST_ZXID_KEY,[]) of
 		{ok,Value}->
 		    {ok,#state{leveldb=Ref},binary_to_term(Value)};
 		not_found->
 		    {ok,#state{leveldb=Ref},{0,0}};
 		{error,Reason}->
-		    lager:info("get last zxid error ~p",[Reason]),
+		    lager:error("get last zxid error ~p",[Reason]),
 		    {error,Reason}
 	    end
             ;
         {error, Reason} ->
-	    lager:info("open db error ~p",[Reason]),
+	    lager:error("open db error ~p",[Reason]),
             {error, Reason}
     end.
 

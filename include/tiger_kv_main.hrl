@@ -37,3 +37,5 @@
 %max time for clint connect to server,if no msg
 -define(CLIENT_SOCKET_TIMEOUT,60*60*1000).
 
+-define(BACKLOG_NUM,10240).
+

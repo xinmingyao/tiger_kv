@@ -28,7 +28,7 @@
 	  last_snap_filename ::string(),
 	  last_save           :: float()}).
 -opaque state() :: #state{}.
--export([put/3,get/2,delete/2]).
+-export([put/3,get/2,delete/2,get/3]).
 -export([do_snapshot/2,send_snapshot/0,send_gc/0]).
 
 
@@ -41,38 +41,24 @@
 %%% API
 %%%===================================================================
 
+-spec put(Key::binary(),Value::binary(),Index::non_neg_integer())->
+		 ok|not_ready|timeout|{'EXIT',Reason::any()}.
 put(Key,Value,Index)->
-    case catch  gen_zab_server:proposal_call(?SERVER,{put,Key,Value,Index}) of
-        {error,not_ready} ->
-            {error,not_ready};
-	{ok,Res} ->
-            Res;
-        {'EXIT',Reason} ->
-            {error,Reason};
-	Res->
-	    Res
-    end
-   %
+    gen_zab_server:proposal_call(?SERVER,{put,Key,Value,Index}) 
     .
+-spec delete(Key::binary(),Index::non_neg_integer())->
+		 ok|not_ready|timeout|{'EXIT',Reason::any()}.
 delete(Key,Index)->
-    case catch  gen_zab_server:proposal_call(?SERVER,{delete,Key,Index}) of
-        {error,not_ready} ->
-            {error,"not_ready"};
-	{ok,Res} ->
-            Res;
-        {'EXIT',Reason} ->
-            {error,Reason};
-	Res->
-	    Res
-    end
+    gen_zab_server:proposal_call(?SERVER,{delete,Key,Index})
     .
+-spec get(Key::binary(),Index::non_neg_integer(),Ref::nif_ref)->
+		 {ok,Value::binary()}|timeout.
+get(Key,Index,Ref)->
+    eredis_engine:get(Ref,Key,Index).
+
+%nouse,use nif direct as above
 get(Key,Index)->
-    case catch  gen_zab_server:call(?SERVER,{get,Key,Index}) of
-        {'EXIT',Reason} ->
-            {error,Reason};
-	Res->
-	    Res
-    end
+    gen_zab_server:call(?SERVER,{get,Key,Index})
     .
 
 %%--------------------------------------------------------------------
@@ -94,13 +80,20 @@ send_gc()->
 do_snapshot(LastZxid,State)->
     T= zabe_util:encode_zxid(LastZxid),
     FileName=filename:join(State#state.redis_db_dir,T++".rdb"),
-    lager:notice("start snapshot db file_name:~p:",[FileName]),
-    case eredis_engine:save_db(State#state.db,FileName) of
-	ok->
-	    lager:notice("snapshot db:~p ok",[FileName]),
-	    {ok,State#state{last_snap_filename=FileName}};
-	_-> lager:error("db snapshot error"),
-	    {error,"save error"}
+    
+    case filelib:is_file(FileName) of
+	false->
+    
+	    lager:notice("start snapshot db file_name:~p:",[FileName]),
+	    case eredis_engine:save_db(State#state.db,FileName) of
+		ok->
+		    lager:notice("snapshot db:~p ok",[FileName]),
+		    {ok,State#state{last_snap_filename=FileName}};
+		_-> lager:error("db snapshot error"),
+		    {error,"save error"}
+	    end;
+	true->
+	    lager:notice("file:~p exist,not do snapshot",[FileName])
     end.
 
 %%%===================================================================
@@ -128,12 +121,13 @@ init([Conf,DbDir]) ->
     LastFile,
     {ok,Db}=
      case LastFile of
-	 0->eredis_engine:open("nouse",Conf,0);
+	 0->
+	     lager:notice("open redis with no db file"),
+	     eredis_engine:open("nouse",Conf,0);
 	 _->
 	     lager:notice("open rdb: ~p",[LastFile]),
 	     eredis_engine:open(LastFile,Conf,1)
      end,
-
     true=tiger_global:put(?MODULE,{Db}),
     {ok,#state{db=Db,redis_db_dir=DbDir},Zxid}.
 

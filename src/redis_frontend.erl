@@ -55,11 +55,11 @@ start_link (_ListenPid,Socket,Transport,TransOps) ->
 %%--------------------------------------------------------------------
 init([Socket,_,_]) ->
     inet:setopts(Socket,[binary,
-			       {packet, raw},
-			       {active, once},
-			       {reuseaddr, true},
-			       {nodelay, true},
-			       {keepalive, true}]),
+			 {packet, raw},
+			 {active, once},
+			 {reuseaddr, true},
+			 {nodelay, true},
+			 {keepalive, true}]),
     {ok,{Ref1}}=tiger_global:get(redis_backend),
     put(index,0),
     {ok, #state{socket=Socket,parser_state=#pstate{},nif_ref=Ref1},?CLIENT_SOCKET_TIMEOUT}.
@@ -166,13 +166,14 @@ process_req([<<"SET">>,K,V],_Socket)->
 		<<"-timeout",?NL>>;
 	    {error,not_ready}->
 		<<"-not_ready",?NL>>;
-	    _ ->
+	    A ->
+		lager:error("~p",[A]),
 		<<"-error",?NL>>
 	end,
     Rep;
 process_req([<<"GET">>,K],State) ->
     Index=get(index),
-    Rep=case  eredis_engine:get(State#state.nif_ref,K,Index) of
+    Rep=case  redis_backend:get(K,Index,State#state.nif_ref) of
 	    {ok,Value}->
 		Size=erlang:size(Value),
 		S=list_to_binary(erlang:integer_to_list(Size)),
@@ -188,9 +189,12 @@ process_req([<<"DEL">>,K],_Socket) ->
     Rep=case catch redis_backend:delete(K,get(index)) of
 	    ok->
 		<<"+OK",?NL>>;
+	    {error,not_ready}->
+		<<"-not_ready",?NL>>;
 	    timeout->
 		<<"-timeout",?NL>>;
-	    _ ->
+	    A ->
+		lager:error("~p",[A]),
 		<<"-error",?NL>>
 	end,
     Rep;
@@ -212,7 +216,8 @@ process_req(<<"SELECT",Rest/binary>>,_Socket) ->
     end;
 process_req([<<"PING">>],_Socket) ->
     <<"+PONG",?NL>>;
-process_req(_A,_Socket) ->
+process_req(A,_Socket) ->
+    lager:error("~p",[A]),
     <<"-error_not_support",?NL>>.
 
 	

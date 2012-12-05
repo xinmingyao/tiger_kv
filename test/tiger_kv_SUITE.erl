@@ -2,8 +2,6 @@
 -compile(export_all).
 -include_lib("common_test/include/ct.hrl").
 -compile([{parse_transform, lager_transform}]).
-%-include("zabe_main.hrl").
-
 
 -define(HOST,'localhost').
 -define(NODES,['n1@localhost','n2@localhost','n3@localhost']).
